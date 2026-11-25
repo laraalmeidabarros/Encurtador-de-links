@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Encurtador de Links</title>
+  <style>
+    :root { --bg:#f5f6fa; --card:#fff; --text:#1f2430; --muted:#6b7280; --accent:#4f46e5; --border:#e5e7eb; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#12141a; --card:#1c1f28; --text:#e8eaf0; --muted:#9aa1b0; --accent:#818cf8; --border:#2c3040; }
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, sans-serif; background:var(--bg); color:var(--text); }
+    main { max-width: 760px; margin: 0 auto; padding: 32px 16px; }
+    h1 { margin-bottom: 4px; }
+    p.sub { color: var(--muted); margin-top: 0; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; margin-top:20px; }
+    form { display:flex; gap:8px; flex-wrap:wrap; }
+    input { flex:1; min-width:220px; padding:12px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-size:15px; }
+    button { padding:12px 20px; border:0; border-radius:8px; background:var(--accent); color:#fff; font-size:15px; cursor:pointer; }
+    #result { margin-top:14px; display:none; }
+    #result a { color:var(--accent); font-weight:600; word-break:break-all; }
+    .error { color:#dc2626; margin-top:10px; }
+    .table-wrap { overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th, td { text-align:left; padding:10px 8px; border-bottom:1px solid var(--border); }
+    td.url { max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); }
+    a { color:var(--accent); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>🔗 Encurtador de Links</h1>
+    <p class="sub">Cole uma URL enorme e receba um link curto.</p>
+
+    <div class="card">
+      <form id="form">
+        <input id="url" type="url" placeholder="https://exemplo.com/uma/url/muito/longa..." required />
+        <button type="submit">Encurtar</button>
+      </form>
+      <div id="result">
+        Seu link: <a id="short" target="_blank" rel="noopener"></a>
+        <button id="copy" type="button" style="padding:6px 12px;margin-left:8px">Copiar</button>
+      </div>
+      <div id="error" class="error"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">Links recentes</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Curto</th><th>Original</th><th>Cliques</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const form = document.getElementById('form');
+    const urlInput = document.getElementById('url');
+    const result = document.getElementById('result');
+    const shortEl = document.getElementById('short');
+    const errorEl = document.getElementById('error');
+    const rows = document.getElementById('rows');
+
+    async function loadLinks() {
+      const res = await fetch('/api/links');
+      const links = await res.json();
+      rows.innerHTML = '';
+      for (const l of links) {
+        const tr = document.createElement('tr');
+        const tdShort = document.createElement('td');
+        const a = document.createElement('a');
+        a.href = l.shortUrl; a.target = '_blank'; a.textContent = l.shortUrl;
+        tdShort.appendChild(a);
+        const tdUrl = document.createElement('td');
+        tdUrl.className = 'url'; tdUrl.textContent = l.original_url; tdUrl.title = l.original_url;
+        const tdClicks = document.createElement('td');
+        tdClicks.textContent = l.clicks;
+        tr.append(tdShort, tdUrl, tdClicks);
+        rows.appendChild(tr);
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorEl.textContent = '';
+      result.style.display = 'none';
+      try {
+        const res = await fetch('/api/shorten', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: urlInput.value.trim() }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Erro ao encurtar');
+        shortEl.href = data.shortUrl;
+        shortEl.textContent = data.shortUrl;
+        result.style.display = 'block';
+        urlInput.value = '';
+        loadLinks();
+      } catch (err) {
+        errorEl.textContent = err.message;
+      }
+    });
+
+    document.getElementById('copy').addEventListener('click', () => {
+      navigator.clipboard.writeText(shortEl.textContent);
+    });
+
+    loadLinks();
+  </script>
+</body>
+</html>

@@ -6,6 +6,8 @@ const db = require('./db');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+const ALIAS_REGEX = /^[A-Za-z0-9_-]{3,30}$/;
+const RESERVED_ALIASES = ['api', 'admin', 'static', 'public'];
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
 app.use(express.json());
@@ -25,13 +27,38 @@ function isValidUrl(value) {
   }
 }
 
-// Cria um link curto
+// Cria um link curto (com alias opcional)
 app.post('/api/shorten', (req, res) => {
-  const { url } = req.body || {};
+  const { url, alias } = req.body || {};
   if (!url || !isValidUrl(url)) {
     return res.status(400).json({ error: 'URL inválida. Use http:// ou https://' });
   }
 
+  // Alias personalizado
+  if (alias) {
+    if (!ALIAS_REGEX.test(alias)) {
+      return res.status(400).json({
+        error: 'Alias inválido. Use de 3 a 30 caracteres: letras, números, - ou _',
+      });
+    }
+    if (RESERVED_ALIASES.includes(alias.toLowerCase())) {
+      return res.status(400).json({ error: 'Esse alias é reservado. Escolha outro.' });
+    }
+    if (db.findByCode(alias)) {
+      return res.status(409).json({ error: 'Esse alias já está em uso. Escolha outro.' });
+    }
+    try {
+      db.create(alias, url);
+      return res.status(201).json({ code: alias, shortUrl: `${BASE_URL}/${alias}` });
+    } catch (err) {
+      if (String(err.message).includes('UNIQUE')) {
+        return res.status(409).json({ error: 'Esse alias já está em uso. Escolha outro.' });
+      }
+      throw err;
+    }
+  }
+
+  // Sem alias: reaproveita link existente ou gera código aleatório
   const existing = db.findByUrl(url);
   if (existing) {
     return res.json({ code: existing.code, shortUrl: `${BASE_URL}/${existing.code}` });
@@ -64,7 +91,7 @@ app.get('/api/links/:code', (req, res) => {
 
 // Redireciona e conta o clique
 app.get('/:code', (req, res, next) => {
-  if (!/^[A-Za-z0-9]{6}$/.test(req.params.code)) return next();
+  if (!ALIAS_REGEX.test(req.params.code)) return next();
   const link = db.findByCode(req.params.code);
   if (!link) return res.status(404).send('Link não encontrado');
   db.addClick(link.code);

@@ -36,6 +36,7 @@
     <div class="card">
       <form id="form">
         <input id="url" type="url" placeholder="https://exemplo.com/uma/url/muito/longa..." required />
+        <input id="alias" type="text" placeholder="Alias (opcional): meu-link" pattern="[A-Za-z0-9_\-]{3,30}" maxlength="30" title="3 a 30 caracteres: letras, números, - ou _" style="flex:0 1 200px;min-width:160px" />
         <button type="submit">Encurtar</button>
       </form>
       <div id="result">
@@ -59,6 +60,7 @@
   <script>
     const form = document.getElementById('form');
     const urlInput = document.getElementById('url');
+    const aliasInput = document.getElementById('alias');
     const result = document.getElementById('result');
     const shortEl = document.getElementById('short');
     const errorEl = document.getElementById('error');
@@ -91,7 +93,7 @@
         const res = await fetch('/api/shorten', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: urlInput.value.trim() }),
+          body: JSON.stringify({ url: urlInput.value.trim(), alias: aliasInput.value.trim() || undefined }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Erro ao encurtar');
@@ -99,6 +101,7 @@
         shortEl.textContent = data.shortUrl;
         result.style.display = 'block';
         urlInput.value = '';
+        aliasInput.value = '';
         loadLinks();
       } catch (err) {
         errorEl.textContent = err.message;
